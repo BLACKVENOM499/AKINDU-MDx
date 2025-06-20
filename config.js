@@ -6,7 +6,7 @@ function convertToBool(text, fault = 'true') {
 }
 
 module.exports = {
-    SESSION_ID: process.env.SESSION_ID || "LJtjgbiR#TAp4QlhUklSq2D8HR1Nx_ZY7U4lAv0aUjfEBu2z_V6Q",
+    SESSION_ID: process.env.SESSION_ID || "fZ9RDAYA#S3IuuTppT9BOfwyGXKpz3L1h1h0xgTXAw1rjbSrGFYg",
     CUSTOM_REACT: process.env.CUSTOM_REACT || "false",
     CUSTOM_REACT_EMOJIS: process.env.CUSTOM_REACT_EMOJIS || "💝,💖,💗,❤️‍🔥,❤️‍🩹,❤️,🩷,🧡,💛,💚,💙,🩵,💜,🤎,🖤,🩶,🤍",
     CAPTION: process.env.CAPTION || "*ᴀᴋɪɴᴅᴜ-ᴍᴅ*",
