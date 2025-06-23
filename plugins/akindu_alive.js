@@ -38,7 +38,7 @@ Choose an option by typing the number:
     aliveSessions[m.key.id] = { from };
 
     await conn.sendMessage(from, {
-      image: { url: 'https://example.com/your-image.jpg' }, // Replace with your image URL
+      image: { url: 'https://files.catbox.moe/wqp3y9.jpg' }, // Replace with your image URL
       caption: menuText,
       contextInfo: { mentionedJid: [m.sender] }
     }, { quoted: mek });
