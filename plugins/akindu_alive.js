@@ -1,16 +1,15 @@
 const { cmd } = require('../command');
-const os = require('os');
+const os = require("os");
 const { runtime } = require('../lib/functions');
 
-// Temporary store for alive command sessions keyed by message ID
-const aliveSessions = {};
+const sessions = {}; // Store menu sessions
 
 cmd({
   pattern: "alive",
   alias: ["status", "runtime", "uptime"],
-  desc: "Show alive info and wait for number reply",
+  desc: "Show bot status and wait for a number",
   category: "main",
-  react: "☹️",
+  react: "📟",
   filename: __filename
 },
 async (conn, mek, m, { from, reply }) => {
@@ -18,7 +17,6 @@ async (conn, mek, m, { from, reply }) => {
     const usedMem = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
     const totalMem = (os.totalmem() / 1024 / 1024).toFixed(2);
 
-    // Prepare numbered options text
     const menuText = `┏━❮ 🩵 *𝐋𝐀𝐊𝐈𝐘𝐀 𝐀𝐋𝐈𝐕𝐄* 🩵 ❯━
 ┃◈ 🤖 Bot Name : 𝐋𝐀𝐊𝐈𝐘𝐀
 ┃◈ 🔖 Version  : 2.0
@@ -27,68 +25,75 @@ async (conn, mek, m, { from, reply }) => {
 ┃◈ 📆 Runtime : ${runtime(process.uptime())}
 ┃◈ 📈 RAM Usage: ${usedMem}MB / ${totalMem}MB
 ┗━━━━━━━━━━━━━━━𖣔𖣔
-╰──────────────┈⊷
 
-Choose an option by typing the number:
-1. Show Bot Speed (Latency)
+Choose an option:
+1. Show Bot Speed
 2. Show Owner Info
 3. Exit`;
 
-    // Save session with message ID to track reply
-    aliveSessions[m.key.id] = { from };
+    const sent = await conn.sendMessage(from, {
+      text: menuText,
+      quoted: mek
+    });
 
-    await conn.sendMessage(from, {
-      image: { url: 'https://files.catbox.moe/wqp3y9.jpg' }, // Replace with your image URL
-      caption: menuText,
-      contextInfo: { mentionedJid: [m.sender] }
-    }, { quoted: mek });
+    // Store session to track user reply
+    sessions[sent.key.id] = {
+      from,
+      user: m.sender
+    };
 
   } catch (e) {
-    console.error("Error in alive command:", e);
-    reply(`❌ An error occurred: ${e.message}`);
+    console.error("Alive Error:", e);
+    reply(`❌ Error: ${e.message}`);
   }
 });
 
+// Handle number reply
 cmd({
   on: "text"
-}, async (conn, m, store, { from, reply }) => {
-  // Check if this message is a reply to our alive menu message
+}, async (conn, m, store, { from }) => {
   const quotedId = m.quoted?.key?.id;
-  if (!quotedId || !aliveSessions[quotedId]) return; // Not related
+  if (!quotedId || !sessions[quotedId]) return;
 
-  // Only accept from the same user who started session
-  if (from !== aliveSessions[quotedId].from) return;
+  const session = sessions[quotedId];
 
-  const choice = m.text.trim();
+  // Check if it's from the same user who triggered it
+  if (m.sender !== session.user) return;
 
-  switch (choice) {
-    case '1': {
-      // Calculate latency using message timestamp and current time
+  const number = m.text.trim();
+
+  switch (number) {
+    case "1": {
       const latency = Date.now() - (m.messageTimestamp * 1000);
-
       await conn.sendMessage(from, {
-        text: `⚡ Bot Speed (Latency): *${latency} ms*\n\n*AKINDU MD*`
-      }, { quoted: m });
-
+        text: `⚡ Bot Speed: *${latency} ms*\n\n*AKINDU MD*`,
+        quoted: m
+      });
       break;
     }
-    case '2':
+
+    case "2":
       await conn.sendMessage(from, {
-        text: `👨‍💻 Owner: *MR LAKSIDU*\nContact: +1234567890\n\n*AKINDU MD*`
-      }, { quoted: m });
+        text: `👑 Owner: *MR AKINDU*\n🔗 WhatsApp: wa.me/94764703165\n\n*AKINDU MD*`,
+        quoted: m
+      });
       break;
 
-    case '3':
+    case "3":
       await conn.sendMessage(from, {
-        text: "Exiting alive menu. Thank you!\n\n*AKINDU MD*"
-      }, { quoted: m });
+        text: `✅ Exited the menu. Thank you!\n\n*AKINDU MD*`,
+        quoted: m
+      });
       break;
 
     default:
-      await reply("❌ Invalid option. Please type 1, 2, or 3.");
-      return; // Don't clear session on invalid input
+      await conn.sendMessage(from, {
+        text: `❌ Invalid number. Please type 1, 2 or 3.`,
+        quoted: m
+      });
+      return;
   }
 
-  // Clear session after valid selection
-  delete aliveSessions[quotedId];
+  // Clean up session after reply
+  delete sessions[quotedId];
 });
