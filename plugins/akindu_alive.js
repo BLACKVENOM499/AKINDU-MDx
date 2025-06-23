@@ -10,7 +10,7 @@ cmd({
   alias: ["status", "runtime", "uptime"],
   desc: "Show alive info and wait for number reply",
   category: "main",
-  react: "📟",
+  react: "☹️",
   filename: __filename
 },
 async (conn, mek, m, { from, reply }) => {
