@@ -1,96 +1,74 @@
 const { cmd } = require('../command');
 const axios = require('axios');
 
-// Temporary store for selections
-const fbTempStore = {};
-
-// 📥 Facebook Video Downloader Command
 cmd({
-  pattern: "fb",
-  alias: ["facebook", "fbdl"],
-  desc: "Download Facebook video in HD, SD, or audio",
-  category: "download",
-  filename: __filename
-}, async (conn, m, store, { from, q, reply }) => {
-  try {
-    if (!q || !q.includes("facebook.com")) {
-      return reply("❌ *Please send a valid Facebook video URL.*");
+    pattern: "tiktok",
+    alias: ["ttdl", "tt", "tiktokdl"],
+    desc: "Download TikTok video without watermark in SD or HD quality",
+    category: "downloader",
+    react: "🎵",
+    filename: __filename
+},
+async (conn, mek, m, { from, args, q, reply }) => {
+    try {
+        if (!q) return reply("Please provide a TikTok video link and quality number (1 for SD, 2 for HD).\n\nExample:\n.tiktok <link> 1");
+        
+        // Split input to get link and quality number
+        // args example: ['https://tiktok...', '1']
+        let inputArgs = q.trim().split(' ');
+        let link = inputArgs[0];
+        let qualityNum = inputArgs[1] || '1'; // default to SD (1)
+
+        if (!link.includes("tiktok.com")) return reply("Invalid TikTok link.");
+        if (!['1', '2'].includes(qualityNum)) return reply("Quality number must be 1 (SD) or 2 (HD).");
+
+        reply("Downloading video, please wait...");
+
+        const apiUrl = `https://delirius-apiofc.vercel.app/download/tiktok?url=${encodeURIComponent(link)}`;
+        const { data } = await axios.get(apiUrl);
+
+        if (!data.status || !data.data) return reply("Failed to fetch TikTok video.");
+
+        const { title, like, comment, share, author, meta } = data.data;
+        if (!meta || !meta.media || !Array.isArray(meta.media)) 
+            return reply("Video metadata not found.");
+
+        // Find SD and HD video URLs
+        // Based on assumption: type = "video" with 'quality' or 'resolution' property
+        // If no explicit quality, fallback based on index
+
+        // Find all videos
+        const videos = meta.media.filter(v => v.type === 'video');
+
+        if (videos.length === 0) return reply("No video found in metadata.");
+
+        // Try to find SD (lower quality) and HD (higher quality)
+        // If meta.media items have 'quality' or 'resolution', use them.
+        // Otherwise, assume videos[0] = SD, videos[1] = HD (if exists)
+
+        let sdVideo = videos[0];
+        let hdVideo = videos[1] || videos[0]; // fallback to first if no HD
+
+        // Select video based on qualityNum
+        const selectedVideo = qualityNum === '1' ? sdVideo : hdVideo;
+        if (!selectedVideo.org) return reply("Video URL not found.");
+
+        const videoUrl = selectedVideo.org;
+
+        const caption = `🎵 *TikTok Video* 🎵\n\n` +
+                        `👤 *User:* ${author.nickname} (@${author.username})\n` +
+                        `📖 *Title:* ${title}\n` +
+                        `👍 *Likes:* ${like}\n💬 *Comments:* ${comment}\n🔁 *Shares:* ${share}\n\n` +
+                        `📺 *Quality:* ${qualityNum === '1' ? 'SD' : 'HD'}`;
+
+        await conn.sendMessage(from, {
+            video: { url: videoUrl },
+            caption,
+            contextInfo: { mentionedJid: [m.sender] }
+        }, { quoted: mek });
+
+    } catch (e) {
+        console.error("Error in TikTok downloader command:", e);
+        reply(`An error occurred: ${e.message}`);
     }
-
-    // React to show it's processing
-    await conn.sendMessage(from, { react: { text: '📥', key: m.key } });
-
-    // Fetch download data from API
-    const api = `https://lance-frank-asta.onrender.com/api/downloader?url=${encodeURIComponent(q)}`;
-    const { data } = await axios.get(api);
-
-    const videoList = data?.content?.data?.result || [];
-    const audioUrl = data?.content?.data?.audio?.url;
-
-    const formats = [];
-
-    const sd = videoList.find(v => v.quality === "SD");
-    const hd = videoList.find(v => v.quality === "HD");
-
-    if (sd) formats.push({ type: "video", label: "SD", url: sd.url });
-    if (hd) formats.push({ type: "video", label: "HD", url: hd.url });
-    if (audioUrl) formats.push({ type: "audio", label: "Audio (MP3)", url: audioUrl });
-
-    if (formats.length === 0) return reply("❌ No downloadable formats found.");
-
-    // Prepare selection menu
-    let text = "🎬 *Select a format to download:*\n\n";
-    formats.forEach((f, i) => {
-      text += `*${i + 1}.* ${f.label}\n`;
-    });
-    text += `\n📩 _Reply with a number (1-${formats.length})_`;
-
-    // Save selection to temporary memory using message ID
-    fbTempStore[m.key.id] = formats;
-
-    // Send format list to user
-    await conn.sendMessage(from, { text, quoted: m });
-
-  } catch (err) {
-    console.error("FB Download Error:", err.message);
-    reply("❌ Something went wrong while processing the link.");
-  }
-});
-
-// 🎯 Handle Number Reply from User
-cmd({
-  on: "text"
-}, async (conn, m, store, { from, reply }) => {
-  try {
-    const quotedId = m.quoted?.key?.id;
-    if (!quotedId || !fbTempStore[quotedId]) return;
-
-    const formats = fbTempStore[quotedId];
-    const num = parseInt(m.text.trim());
-
-    if (isNaN(num) || num < 1 || num > formats.length) {
-      return reply(`❌ Invalid selection. Type a number between 1 and ${formats.length}`);
-    }
-
-    const chosen = formats[num - 1];
-    delete fbTempStore[quotedId]; // Clean up
-
-    if (chosen.type === "audio") {
-      await conn.sendMessage(from, {
-        document: { url: chosen.url },
-        mimetype: 'audio/mpeg',
-        fileName: 'facebook-audio.mp3',
-        caption: `🎵 *Downloaded Audio (MP3)*`
-      }, { quoted: m });
-    } else {
-      await conn.sendMessage(from, {
-        video: { url: chosen.url },
-        caption: `📥 *Downloaded Video (${chosen.label})*`
-      }, { quoted: m });
-    }
-
-  } catch (e) {
-    console.error("Reply handler error:", e.message);
-    reply("❌ Failed to process your selection.");
-  }
 });
