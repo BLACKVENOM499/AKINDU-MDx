@@ -1,99 +1,96 @@
 const { cmd } = require('../command');
 const axios = require('axios');
 
-// MAIN FACEBOOK DOWNLOAD COMMAND
+// Temporary store for selections
+const fbTempStore = {};
+
+// 📥 Facebook Video Downloader Command
 cmd({
   pattern: "fb",
-  alias: ["facebook", "fb3", "fbdl"],
-  desc: "Download Facebook videos (SD, HD, Audio)",
+  alias: ["facebook", "fbdl"],
+  desc: "Download Facebook video in HD, SD, or audio",
   category: "download",
   filename: __filename
 }, async (conn, m, store, { from, q, reply }) => {
   try {
-    if (!q || !q.startsWith("https://")) {
-      return reply("*🔗 Please provide a valid Facebook video URL.*");
+    if (!q || !q.includes("facebook.com")) {
+      return reply("❌ *Please send a valid Facebook video URL.*");
     }
 
+    // React to show it's processing
     await conn.sendMessage(from, { react: { text: '📥', key: m.key } });
 
-    const apiUrl = `https://lance-frank-asta.onrender.com/api/downloader?url=${encodeURIComponent(q)}`;
-    const { data } = await axios.get(apiUrl);
+    // Fetch download data from API
+    const api = `https://lance-frank-asta.onrender.com/api/downloader?url=${encodeURIComponent(q)}`;
+    const { data } = await axios.get(api);
 
-    if (!data?.content?.status || !data?.content?.data?.result?.length) {
-      throw new Error("API failed or no video found.");
-    }
-
-    const results = data.content.data.result;
-    const audioUrl = data.content.data.audio?.url;
+    const videoList = data?.content?.data?.result || [];
+    const audioUrl = data?.content?.data?.audio?.url;
 
     const formats = [];
 
-    const sd = results.find(v => v.quality === "SD");
-    const hd = results.find(v => v.quality === "HD");
+    const sd = videoList.find(v => v.quality === "SD");
+    const hd = videoList.find(v => v.quality === "HD");
 
-    if (sd) formats.push({ type: "video", quality: "SD", url: sd.url, size: sd.size || "Unknown" });
-    if (hd) formats.push({ type: "video", quality: "HD", url: hd.url, size: hd.size || "Unknown" });
-    if (audioUrl) formats.push({ type: "audio", quality: "Audio", url: audioUrl, size: "MP3 Audio" });
+    if (sd) formats.push({ type: "video", label: "SD", url: sd.url });
+    if (hd) formats.push({ type: "video", label: "HD", url: hd.url });
+    if (audioUrl) formats.push({ type: "audio", label: "Audio (MP3)", url: audioUrl });
 
-    if (formats.length === 0) {
-      return reply("❌ No downloadable formats found (SD/HD/Audio).");
-    }
+    if (formats.length === 0) return reply("❌ No downloadable formats found.");
 
-    // Build selection list
-    let caption = "🎬 *Select a format to download:*\n\n";
-    formats.forEach((v, i) => {
-      caption += `*${i + 1}.* ${v.quality} - ${v.size}\n`;
+    // Prepare selection menu
+    let text = "🎬 *Select a format to download:*\n\n";
+    formats.forEach((f, i) => {
+      text += `*${i + 1}.* ${f.label}\n`;
     });
-    caption += `\n📩 _Reply with the number (1-${formats.length}) to download._`;
+    text += `\n📩 _Reply with a number (1-${formats.length})_`;
 
-    // Store selection temporarily
-    global.fbDownloads = global.fbDownloads || {};
-    global.fbDownloads[m.key.id] = formats;
+    // Save selection to temporary memory using message ID
+    fbTempStore[m.key.id] = formats;
 
-    await conn.sendMessage(from, {
-      text: caption,
-      quoted: m
-    });
+    // Send format list to user
+    await conn.sendMessage(from, { text, quoted: m });
 
-  } catch (error) {
-    console.error("FB Download Error:", error);
-
-    const ownerNumber = conn.user?.id?.split(":")[0] + "@s.whatsapp.net";
-    await conn.sendMessage(ownerNumber, {
-      text: `⚠️ *FB Downloader Error!*\n\n📍 *Group/User:* ${from}\n💬 *Query:* ${q}\n❌ *Error:* ${error.message || error}`
-    });
-
-    reply("❌ An error occurred. Please try again later.");
+  } catch (err) {
+    console.error("FB Download Error:", err.message);
+    reply("❌ Something went wrong while processing the link.");
   }
 });
 
-// HANDLER FOR USER'S REPLY
+// 🎯 Handle Number Reply from User
 cmd({
   on: "text"
 }, async (conn, m, store, { from, reply }) => {
-  if (!global.fbDownloads || !global.fbDownloads[m.quoted?.key?.id]) return;
+  try {
+    const quotedId = m.quoted?.key?.id;
+    if (!quotedId || !fbTempStore[quotedId]) return;
 
-  const selection = parseInt(m.text.trim());
-  const formats = global.fbDownloads[m.quoted.key.id];
+    const formats = fbTempStore[quotedId];
+    const num = parseInt(m.text.trim());
 
-  if (isNaN(selection) || selection < 1 || selection > formats.length) {
-    return reply("❌ Invalid number. Please reply with a valid option.");
-  }
+    if (isNaN(num) || num < 1 || num > formats.length) {
+      return reply(`❌ Invalid selection. Type a number between 1 and ${formats.length}`);
+    }
 
-  const chosen = formats[selection - 1];
-  delete global.fbDownloads[m.quoted.key.id]; // Clean up
+    const chosen = formats[num - 1];
+    delete fbTempStore[quotedId]; // Clean up
 
-  if (chosen.type === "audio") {
-    await conn.sendMessage(from, {
-      document: { url: chosen.url },
-      mimetype: 'audio/mpeg',
-      fileName: 'facebook-audio.mp3',
-      caption: `🎵 *Downloaded Audio (MP3)*\n> *ᴀᴋɪɴᴅᴜ ᴍᴅ*`
-    }, { quoted: m });
-  } else {
-    await conn.sendMessage(from, {
-      video: { url: chosen.url },
-      caption: `📽️ *Downloaded Video (${chosen.quality})*\n> *ᴀᴋɪɴᴅᴜ ᴍᴅ*`
-    }, { quoted: m });
+    if (chosen.type === "audio") {
+      await conn.sendMessage(from, {
+        document: { url: chosen.url },
+        mimetype: 'audio/mpeg',
+        fileName: 'facebook-audio.mp3',
+        caption: `🎵 *Downloaded Audio (MP3)*`
+      }, { quoted: m });
+    } else {
+      await conn.sendMessage(from, {
+        video: { url: chosen.url },
+        caption: `📥 *Downloaded Video (${chosen.label})*`
+      }, { quoted: m });
+    }
+
+  } catch (e) {
+    console.error("Reply handler error:", e.message);
+    reply("❌ Failed to process your selection.");
   }
 });
