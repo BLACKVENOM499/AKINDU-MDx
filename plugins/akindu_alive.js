@@ -1,95 +1,96 @@
-const { cmd } = require('../command');
-const os = require('os');
+const config = require('../config')
+const { cmd } = require('../command')
+const os = require("os");
 const { runtime } = require('../lib/functions');
 
-// Session to track user interactions
-let aliveSessions = {};
+// Store active reply sessions
+const aliveSessions = {};
 
 cmd({
   pattern: "alive",
-  alias: ["status", "runtime", "uptime", "speed", "ping"],
-  desc: "Show bot status and wait for number typing",
+  react: "👋",
+  desc: "check bot alive",
   category: "main",
-  react: "📟",
   filename: __filename
-}, async (conn, mek, m, { from, reply }) => {
+}, async (conn, mek, m, {
+  from, pushname, reply
+}) => {
   try {
-    const usedMem = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-    const totalMem = (os.totalmem() / 1024 / 1024).toFixed(2);
+    const madeMenu = `*ᴀᴋɪɴᴅᴜ ᴍᴅ ᴀʟɪᴠᴇ*
 
-    const text = `┏━❮ 🩵 *AKINDU MD ALIVE* 🩵 ❯━
-┃◈ 🤖 *Bot Name* : AKINDU MD
-┃◈ 🔖 *Version*  : 2.0
-┃◈ 📟 *Platform* : ${os.platform()}
-┃◈ 👨‍💻 *Owner*   : MR LAKSIDU
-┃◈ 📆 *Runtime*  : ${runtime(process.uptime())}
-┃◈ 📈 *RAM*      : ${usedMem}MB / ${totalMem}MB
-┗━━━━━━━━━━━━━━━𖣔𖣔
+❒ 👋 ʜᴇʟʟᴏ *${pushname}*
+❒ ʙᴏᴛ ɪꜱ ᴀᴄᴛɪᴠᴇ ✅
+❒ ʜᴏᴡ ᴄᴀɴ ɪ ʜᴇʟᴘ ʏᴏᴜ ᴛᴏᴅᴀʏ?
 
-*Reply with a number to select:*
+💬 *Reply with a number:*
 1️⃣ - Show Bot Speed  
 2️⃣ - Show Owner Info  
-3️⃣ - Exit`;
+3️⃣ - Exit
 
-    const sent = await conn.sendMessage(from, { text }, { quoted: mek });
+> *ᴀᴋɪɴᴅᴜ ᴍᴅ*`;
 
-    // Save session
-    aliveSessions[sent.key.id] = {
+    const sentMsg = await conn.sendMessage(from, {
+      image: { url: config.ALIVE_IMG },
+      caption: madeMenu
+    }, { quoted: mek });
+
+    // Save reply session
+    aliveSessions[sentMsg.key.id] = {
       from,
       user: m.sender
-    };
+    }
 
   } catch (e) {
-    console.error("Alive command error:", e);
-    reply("❌ Error: " + e.message);
+    console.log(e)
+    reply(`${e}`)
   }
 });
 
-// Listen for replies
+// Listen for number reply
 cmd({
   on: "text"
-}, async (conn, m, store, { from }) => {
-  const quotedMsg = m.quoted;
-  const quotedId = quotedMsg?.key?.id;
-
+}, async (conn, m) => {
+  const quoted = m.quoted;
+  const quotedId = quoted?.key?.id;
   if (!quotedId || !aliveSessions[quotedId]) return;
 
   const session = aliveSessions[quotedId];
-
-  // Only allow the original user to reply
   if (m.sender !== session.user) return;
 
-  const choice = m.text.trim();
+  const input = m.text.trim();
 
-  switch (choice) {
+  switch (input) {
     case '1': {
       const latency = Date.now() - (m.messageTimestamp * 1000);
-      await conn.sendMessage(from, {
-        text: `⚡ *Bot Speed*: ${latency} ms\n\n*AKINDU MD*`,
+      await conn.sendMessage(session.from, {
+        text: `⚡ Bot Speed: *${latency} ms*\n\n*AKINDU MD*`,
         quoted: m
       });
       break;
     }
+
     case '2':
-      await conn.sendMessage(from, {
+      await conn.sendMessage(session.from, {
         text: `👑 *Owner*: MR LAKSIDU\n📞 wa.me/94712345678\n\n*AKINDU MD*`,
         quoted: m
       });
       break;
+
     case '3':
-      await conn.sendMessage(from, {
-        text: `✅ *Exited the menu.*\n\nThank you — *AKINDU MD*`,
+      await conn.sendMessage(session.from, {
+        text: `✅ Exited. Thank you!\n\n*AKINDU MD*`,
         quoted: m
       });
       break;
+
     default:
-      await conn.sendMessage(from, {
-        text: `❌ Invalid option. Please reply with 1, 2 or 3.`,
+      await conn.sendMessage(session.from, {
+        text: `❌ Invalid number. Please reply with 1, 2, or 3.`,
         quoted: m
       });
       return;
   }
 
-  // Remove session after one valid interaction
+  // Clear session
   delete aliveSessions[quotedId];
 });
