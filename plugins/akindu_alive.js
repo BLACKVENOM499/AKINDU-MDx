@@ -1,58 +1,94 @@
-const { cmd, commands } = require('../command');
-const moment = require('moment-timezone');
-const axios = require('axios');
+const { cmd } = require('../command');
+const os = require('os');
+const { runtime } = require('../lib/functions');
+
+// Temporary store for alive command sessions keyed by message ID
+const aliveSessions = {};
 
 cmd({
-    pattern: "alive",
-    react: "👋",
-    desc: "Check if the bot is alive",
-    category: "main",
-    filename: __filename
+  pattern: "alive",
+  alias: ["status", "runtime", "uptime"],
+  desc: "Show alive info and wait for number reply",
+  category: "main",
+  react: "📟",
+  filename: __filename
 },
-async (conn, mek, m, { from, pushname, reply }) => {
-    try {
-        // Get Sri Lanka time
-        const now = moment().tz("Asia/Colombo");
-        const hour = now.hour();
+async (conn, mek, m, { from, reply }) => {
+  try {
+    const usedMem = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+    const totalMem = (os.totalmem() / 1024 / 1024).toFixed(2);
 
-        // Greeting based on time
-        let greet = "🌃 Good Night";
-        if (hour >= 5 && hour < 12) greet = "🌅 Good Morning";
-        else if (hour >= 12 && hour < 17) greet = "🌇 Good Afternoon";
-        else if (hour >= 17 && hour < 20) greet = "🌆 Good Evening";
+    // Prepare numbered options text
+    const menuText = `┏━❮ 🩵 *𝐋𝐀𝐊𝐈𝐘𝐀 𝐀𝐋𝐈𝐕𝐄* 🩵 ❯━
+┃◈ 🤖 Bot Name : 𝐋𝐀𝐊𝐈𝐘𝐀
+┃◈ 🔖 Version  : 2.0
+┃◈ 📟 Platform : ${os.platform()}
+┃◈ 👨‍💻 Owner   : 𝐌𝐑 𝐋𝐀𝐊𝐒𝐈𝐃𝐔
+┃◈ 📆 Runtime : ${runtime(process.uptime())}
+┃◈ 📈 RAM Usage: ${usedMem}MB / ${totalMem}MB
+┗━━━━━━━━━━━━━━━𖣔𖣔
+╰──────────────┈⊷
 
-        // Get Sri Lanka weather from wttr.in (Colombo)
-        let weather = "Unknown";
-        try {
-            const res = await axios.get("https://wttr.in/Matara?format=%C+%t");
-            weather = res.data;
-        } catch {
-            weather = "Unavailable";
-        }
+Choose an option by typing the number:
+1. Show Bot Speed (Latency)
+2. Show Owner Info
+3. Exit`;
 
-        let madeMenu = `ᴀᴋɪɴᴅᴜ ᴍᴅ ᴀʟɪᴠᴇ ɴᴏᴡ
+    // Save session with message ID to track reply
+    aliveSessions[m.key.id] = { from };
 
-👋 Hello ${pushname}
+    await conn.sendMessage(from, {
+      image: { url: 'https://example.com/your-image.jpg' }, // Replace with your image URL
+      caption: menuText,
+      contextInfo: { mentionedJid: [m.sender] }
+    }, { quoted: mek });
 
-${greet} ☀️
+  } catch (e) {
+    console.error("Error in alive command:", e);
+    reply(`❌ An error occurred: ${e.message}`);
+  }
+});
 
-🕰️ Current Time: ${now.format('HH:mm:ss')} (Sri Lanka Time)
-🌦️ Weather in ᴍᴀᴛᴀʀᴀ: ${weather}
+cmd({
+  on: "text"
+}, async (conn, m, store, { from, reply }) => {
+  // Check if this message is a reply to our alive menu message
+  const quotedId = m.quoted?.key?.id;
+  if (!quotedId || !aliveSessions[quotedId]) return; // Not related
 
-BOT STATUS: ✅ ONLINE & READY
+  // Only accept from the same user who started session
+  if (from !== aliveSessions[quotedId].from) return;
 
-Need help?
-Type: .menu to view all commands ⚙️
+  const choice = m.text.trim();
 
-༒꧁ Powered by 🥷⚡ \`ᴀᴋɪɴᴅᴜ-ᴍᴅ\` ꧂༒`;
+  switch (choice) {
+    case '1': {
+      // Calculate latency using message timestamp and current time
+      const latency = Date.now() - (m.messageTimestamp * 1000);
 
-        await conn.sendMessage(from, {
-            image: { url: 'https://files.catbox.moe/4l9cjf.jpg' },
-            caption: madeMenu
-        }, { quoted: mek });
+      await conn.sendMessage(from, {
+        text: `⚡ Bot Speed (Latency): *${latency} ms*\n\n*AKINDU MD*`
+      }, { quoted: m });
 
-    } catch (e) {
-        console.log(e);
-        reply(`${e}`);
+      break;
     }
+    case '2':
+      await conn.sendMessage(from, {
+        text: `👨‍💻 Owner: *MR LAKSIDU*\nContact: +1234567890\n\n*AKINDU MD*`
+      }, { quoted: m });
+      break;
+
+    case '3':
+      await conn.sendMessage(from, {
+        text: "Exiting alive menu. Thank you!\n\n*AKINDU MD*"
+      }, { quoted: m });
+      break;
+
+    default:
+      await reply("❌ Invalid option. Please type 1, 2, or 3.");
+      return; // Don't clear session on invalid input
+  }
+
+  // Clear session after valid selection
+  delete aliveSessions[quotedId];
 });
