@@ -2,186 +2,183 @@ const config = require('../config');
 const { cmd, commands } = require('../command');
 const moment = require('moment-timezone');
 
-// Default configurations
-const DEFAULTS = {
-  ALIVE_IMG: 'https://i.imgur.com/J9LF7Yv.jpeg',
-  REPLY_STYLE: 'numbered'
-};
+// Constants
+const MENU_TIMEOUT = 300000; // 5 minutes
 
-// System Monitor Class
-class SystemMonitor {
-  static getStatus() {
-    const mem = process.memoryUsage();
-    return {
-      uptime: process.uptime(),
-      memory: {
-        total: (mem.rss / 1024 / 1024).toFixed(2),
-        used: (mem.heapUsed / 1024 / 1024).toFixed(2)
-      },
-      platform: `${process.platform}/${process.arch}`,
-      versions: {
-        node: process.version,
-        bot: config.version || '5.0.0'
-      }
-    };
-  }
+// Menu state storage
+const activeMenus = new Map();
 
-  static formatUptime(seconds) {
-    const d = Math.floor(seconds / 86400);
-    const h = Math.floor((seconds % 86400) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    return `${d}d ${h}h ${m}m ${s}s`;
-  }
+class AlivePlugin {
+    constructor() {
+        this.defaultImage = config.ALIVE_IMG || 'https://i.imgur.com/J9LF7Yv.jpeg';
+    }
+
+    static async handle(conn, mek, m, { from, pushname, reply }) {
+        try {
+            const plugin = new AlivePlugin();
+            const menuId = `${from}-${Date.now()}`;
+            
+            // Store menu state
+            activeMenus.set(menuId, {
+                timestamp: Date.now(),
+                userId: pushname
+            });
+
+            // Send menu
+            await plugin.sendMenu(conn, from, mek, pushname);
+            
+            // Set timeout to clear menu
+            setTimeout(() => {
+                if (activeMenus.has(menuId)) {
+                    activeMenus.delete(menuId);
+                    conn.sendMessage(from, { 
+                        text: `🕒 Menu session expired for ${pushname}` 
+                    });
+                }
+            }, MENU_TIMEOUT);
+
+        } catch (e) {
+            console.error('[MENU ERROR]', e);
+            reply("⚠️ Failed to generate menu. Please try again.");
+        }
+    }
+
+    async sendMenu(conn, to, quoted, username) {
+        const time = moment().tz('Asia/Colombo').format('h:mm:ss A');
+        const date = moment().tz('Asia/Colombo').format('dddd, MMMM D, YYYY');
+        const uptime = this.formatUptime(process.uptime());
+
+        const menuMessage = {
+            text: `╭──「  AKINDU MD - NUMERIC MENU  」\n` +
+                  `│\n` +
+                  `│ ⏰ Time: ${time} (LK)\n` +
+                  `│ 📅 Date: ${date}\n` +
+                  `│ ⚡ Uptime: ${uptime}\n` +
+                  `│ 👤 User: ${username}\n` +
+                  `│\n` +
+                  `│ 1️⃣ Bot Speed Test\n` +
+                  `│ 2️⃣ System Information\n` +
+                  `│ 3️⃣ Command List\n` +
+                  `│ 4️⃣ Server Status\n` +
+                  `│ 5️⃣ About Akindu MD\n` +
+                  `│\n` +
+                  `╰──「 Reply with NUMBER 1-5 」\n` +
+                  `💡 Example: Reply "1" for speed test`,
+            footer: "⚡ Instant response system | ⌛ 5min timeout"
+        };
+
+        try {
+            await conn.sendMessage(to, { 
+                image: { url: this.defaultImage },
+                caption: menuMessage.text
+            }, { quoted });
+        } catch (e) {
+            await conn.sendMessage(to, { 
+                text: menuMessage.text + (menuMessage.footer ? `\n\n${menuMessage.footer}` : '') 
+            }, { quoted });
+        }
+    }
+
+    formatUptime(seconds) {
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${days}d ${hours}h ${minutes}m ${secs}s`;
+    }
 }
 
-// Main Alive Command
+// Main command handler
 cmd({
-  pattern: "alive",
-  alias: ["status", "ping", "online"],
-  react: "⚡",
-  desc: "Check bot status with interactive options",
-  category: "core",
-  filename: __filename
-}, async (conn, mek, m, { from, pushname, isGroup, groupName, reply }) => {
-  try {
-    const status = SystemMonitor.getStatus();
-    const time = moment().tz('Asia/Colombo').format('h:mm:ss A');
-    const date = moment().tz('Asia/Colombo').format('dddd, MMMM D, YYYY');
-    
-    const response = generateResponse({
-      style: config.REPLY_STYLE || DEFAULTS.REPLY_STYLE,
-      pushname,
-      status,
-      time,
-      date,
-      isGroup,
-      groupName
-    });
+    pattern: "alive",
+    alias: ["menu", "status"],
+    react: "⚡",
+    desc: "Numeric menu system for Akindu MD",
+    category: "core",
+    filename: __filename
+}, AlivePlugin.handle);
 
-    await sendAliveResponse(conn, from, mek, response);
-
-  } catch (e) {
-    console.error('[ALIVE ERROR]', e);
-    reply("❌ Error checking status. Please try again.");
-  }
+// Menu option handler
+cmd({
+    on: "text",
+    fromMe: false,
+    dontAddCommandList: true
+}, async (conn, mek, m, { from, body, pushname }) => {
+    // Check if this is a numeric reply to an active menu
+    if (/^[1-5]$/.test(body.trim())) {
+        const option = parseInt(body.trim());
+        
+        switch(option) {
+            case 1: // Speed Test
+                const start = Date.now();
+                await conn.sendMessage(from, { text: "⏳ Testing response speed..." });
+                const latency = Date.now() - start;
+                await conn.sendMessage(from, { 
+                    text: `📊 *Speed Test Results*\n` +
+                          `Response Time: ${latency}ms\n` +
+                          `Connection: ${latency < 500 ? "🚀 Excellent" : latency < 1000 ? "🏃 Good" : "🐢 Slow"}`
+                });
+                break;
+                
+            case 2: // System Info
+                const mem = process.memoryUsage();
+                await conn.sendMessage(from, { 
+                    text: `💻 *System Information*\n` +
+                          `Platform: ${process.platform}\n` +
+                          `Node.js: ${process.version}\n` +
+                          `Memory: ${(mem.heapUsed/1024/1024).toFixed(2)}MB/${(mem.rss/1024/1024).toFixed(2)}MB`
+                });
+                break;
+                
+            case 3: // Command List
+                // Simplified command list - expand as needed
+                await conn.sendMessage(from, {
+                    text: `📜 *Available Commands*\n` +
+                          `.menu - Show this menu\n` +
+                          `.ping - Test response time\n` +
+                          `.help - Get help\n` +
+                          `\nMore commands coming soon!`
+                });
+                break;
+                
+            case 4: // Server Status
+                await conn.sendMessage(from, {
+                    text: `🛠️ *Server Status*\n` +
+                          `Uptime: ${new AlivePlugin().formatUptime(process.uptime())}\n` +
+                          `CPU: ${process.cpuUsage().user/1000}ms\n` +
+                          `Active Users: ${activeMenus.size}`
+                });
+                break;
+                
+            case 5: // About
+                await conn.sendMessage(from, {
+                    text: `⚡ *About Akindu MD*\n` +
+                          `Version: ${config.version || '5.0'}\n` +
+                          `Developer: Akindu\n` +
+                          `Platform: WhatsApp Bot\n` +
+                          `\n` +
+                          `Advanced features with Sri Lankan optimized performance`
+                });
+                break;
+        }
+    }
 });
 
-// Number-based Reply Handler
-cmd({
-  on: "text",
-  fromMe: false,
-  dontAddCommandList: true
-}, async (conn, mek, m) => {
-  const { body, from, sender } = mek;
-  
-  // Check if message is a number reply to alive message
-  if (/^[0-3]$/.test(body.trim())) {
-    const number = parseInt(body.trim());
-    
-    switch(number) {
-      case 1:
-        await handleSpeedTest(conn, from, mek);
-        break;
-      case 2:
-        await conn.sendMessage(from, { text: "📜 Loading command menu..." }, { quoted: mek });
-        // Add your menu command logic here
-        break;
-      case 3:
-        await conn.sendMessage(from, { text: "⚙️ System diagnostics running..." }, { quoted: mek });
-        // Add your diagnostics logic here
-        break;
-      default:
-        await conn.sendMessage(from, { text: "ℹ️ Please select a valid option (1-3)" }, { quoted: mek });
+// Auto-cleanup expired menus
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, menu] of activeMenus) {
+        if (now - menu.timestamp > MENU_TIMEOUT) {
+            activeMenus.delete(id);
+        }
     }
-  }
-});
+}, 60000); // Check every minute
 
-// Speed Test Handler
-async function handleSpeedTest(conn, to, quoted) {
-  const start = Date.now();
-  await conn.sendMessage(to, { text: "⏳ Calculating response speed..." }, { quoted });
-  const latency = Date.now() - start;
-  
-  let speedRating = "🚀 Excellent";
-  if (latency > 500) speedRating = "🐢 Slow";
-  else if (latency > 200) speedRating = "🏃 Good";
-  
-  await conn.sendMessage(to, { 
-    text: `📊 *Speed Test Results:*\n` +
-          `- Response Time: ${latency}ms\n` +
-          `- Connection: ${speedRating}\n\n` +
-          `🔧 Server: ${process.platform} | Node ${process.version}`
-  }, { quoted });
-}
-
-// Response Generator
-function generateResponse(params) {
-  const { style, pushname, status, time, date } = params;
-  const uptime = SystemMonitor.formatUptime(status.uptime);
-  
-  if (style === 'numbered') {
-    return {
-      text: `🔋 *Akindu MD System Status*\n\n` +
-            `🕒 *Sri Lankan Time:* ${time}\n` +
-            `📅 *Date:* ${date}\n\n` +
-            `⚙️ *System Information:*\n` +
-            `1. Uptime: ${uptime}\n` +
-            `2. Memory: ${status.memory.used}MB / ${status.memory.total}MB\n` +
-            `3. Platform: ${status.platform}\n\n` +
-            `🔢 *Quick Actions:*\n` +
-            `1. Speed Test\n` +
-            `2. Command Menu\n` +
-            `3. System Diagnostics\n\n` +
-            `👋 *User:* ${pushname}`,
-      footer: "💡 Reply with number (1-3) for quick actions"
-    };
-  } else {
-    return {
-      text: `┌──「 *AKINDU MD ONLINE* 」\n` +
-            `│\n` +
-            `│ 🕒 ${time} | ${date}\n` +
-            `│\n` +
-            `│ ⏳ Uptime: ${uptime}\n` +
-            `│ 💾 Memory: ${status.memory.used}MB/${status.memory.total}MB\n` +
-            `│ 🖥️ Platform: ${status.platform}\n` +
-            `│ 📦 Node.js: ${status.versions.node}\n` +
-            `│ 🚀 Version: ${status.versions.bot}\n` +
-            `└───────────────────\n` +
-            `✨ Reply "1" for speed test`
-    };
-  }
-}
-
-// Response Sender
-async function sendAliveResponse(conn, to, quoted, response) {
-  const options = { quoted };
-  const imageUrl = config.ALIVE_IMG || DEFAULTS.ALIVE_IMG;
-  
-  if (response.footer) {
-    response.text += `\n\n${response.footer}`;
-  }
-  
-  try {
-    if (imageUrl) {
-      await conn.sendMessage(to, {
-        image: { url: imageUrl },
-        caption: response.text
-      }, options);
-    } else {
-      await conn.sendMessage(to, { text: response.text }, options);
-    }
-  } catch (e) {
-    console.error('[SEND ERROR]', e);
-    await conn.sendMessage(to, { text: response.text }, options);
-  }
-}
-
-// Command Metadata
+// Command metadata
 commands.alive = {
-  name: 'Alive Check',
-  desc: "Interactive system status with numbered replies",
-  usage: ".alive\n.alive classic\n.alive numbered",
-  category: "core",
-  alias: ["status"]
+    name: 'Numeric Menu',
+    desc: "Interactive number-based menu system",
+    usage: ".alive (then reply with number 1-5)",
+    category: "core",
+    alias: ["menu"]
 };
