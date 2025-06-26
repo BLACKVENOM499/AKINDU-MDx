@@ -5,31 +5,31 @@ const moment = require('moment-timezone');
 // Time-based greeting messages
 const timeGreetings = {
     morning: [
-        "☀️ Good morning {name}! A fresh new day begins!",
-        "🌄 Rise and shine {name}! How can I help you today?",
-        "🦉 Early bird {name}! What's our first task today?"
+        "*☀️ Good morning ! A fresh new day begins!*",
+        "*🌄 Rise and shine ! How can I help you today?*",
+        "*🦉 Early bird What's our first task today?*"
     ],
     afternoon: [
-        "🌞 Good afternoon {name}! How's your day going?",
-        "👋 Hello {name}! Need some afternoon assistance?",
-        "💻 Afternoon boost {name}! What shall we accomplish?"
+        "*🌞 Good afternoon ! How's your day going?*",
+        "*👋 Hello ! Need some afternoon assistance?*",
+        "*💻 Afternoon boost ! What shall we accomplish?*"
     ],
     evening: [
-        "🌇 Good evening {name}! How was your day?",
-        "🌙 Evening {name}! Time for some relaxation?",
-        "🍵 Tea time {name}! How can I assist this evening?"
+        "*🌇 Good evening ! How was your day?*",
+        "*🌙 Evening ! Time for some relaxation?*",
+        "*🍵 Tea time ! How can I assist this evening?*"
     ],
     night: [
-        "🌜 Good night {name}! Rest well!",
-        "🌚 Late night owl {name}! Still working?",
-        "✨ Nighty night {name}! Last tasks before bed?"
+        "-🌜 Good night ! Rest well!*",
+        "*🌚 Late night owl Still working?*",
+        "*✨ Nighty night ! Last tasks before bed?*"
     ]
 };
 
 cmd({
     pattern: "alive",
-    alias: ["status", "ping", "hi", "hello"],
-    react: "✨",
+    alias: ["status", "hi", "hello"],
+    react: "🤖",
     desc: "Get time-based greeting with Sri Lanka time",
     category: "core",
     filename: __filename
@@ -66,16 +66,17 @@ async(conn, mek, m, {from, pushname, reply}) => {
         
         // Simplified status message
         const statusMessage = `
-╭──「 *ᴀᴋɪɴᴅᴜ ᴍᴅ ᴀʟɪᴠᴇ* 」───
-│
-│ ${pushname} ${randomGreeting}
-│
-│ 🕰️ *ᴛɪᴍᴇ:* ${currentTime}
+*ᴀᴋɪɴᴅᴜ ᴍᴅ ᴀʟɪᴠᴇ*
 
-│ 📅 *ᴅᴀᴛᴇ:* ${currentDate}
-│
-│ Type .menu for command list
-╰───────────────────────
+❒ *ʜᴇʟʟᴏ* *${pushname}* *${randomGreeting}*
+
+❒ *ᴛɪᴍᴇ* *${currentTime}*
+
+❒ *ᴅᴀᴛᴇ* *${currentDate}*
+
+ 
+ᴛʏᴘᴇ `.ᴍᴇɴᴜ` ᴛᴏ ɢᴇᴛ ʙᴏᴛ ᴍᴇɴᴜ
+
 *ᴀᴋɪɴᴅᴜ ᴍᴅ*`.trim();
 
         // Send message with image or fallback to text
