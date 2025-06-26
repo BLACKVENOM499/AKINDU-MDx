@@ -30,7 +30,7 @@ cmd({
     pattern: "alive",
     alias: ["status", "ping", "hi", "hello"],
     react: "✨",
-    desc: "Check bot status with time-based greeting",
+    desc: "Get time-based greeting with Sri Lanka time",
     category: "core",
     filename: __filename
 },
@@ -64,29 +64,19 @@ async(conn, mek, m, {from, pushname, reply}) => {
         const randomGreeting = greetingPool[Math.floor(Math.random() * greetingPool.length)]
             .replace('{name}', pushname.split(' ')[0]);
         
-        // System information
-        const uptime = process.uptime();
-        const memUsage = process.memoryUsage();
-        const formattedUptime = formatTime(uptime);
-        const usedMemory = Math.round(memUsage.rss / 1024 / 1024 * 100) / 100;
-        
-        // Enhanced status message with time-based greeting
+        // Simplified status message
         const statusMessage = `
 ╭──「 *ᴀᴋɪɴᴅᴜ ᴍᴅ ᴀʟɪᴠᴇ* 」───
 │
-│ ${randomGreeting}
+│ ${pushname} ${randomGreeting}
 │
-│ 🕓 *Current Time in Sri Lanka:* ${currentTime}
+│ 🕰️ *ᴛɪᴍᴇ:* ${currentTime}
 
-
-│ 📅 *Date:* ${currentDate}
-│ 
-│ 🤖 *Status:* ONLINE
+│ 📅 *ᴅᴀᴛᴇ:* ${currentDate}
 │
-│ Type `.menu` for command list
+│ Type .menu for command list
 ╰───────────────────────
-*ᴀᴋɪɴᴅʏ ᴍᴅ*
-        `.trim();
+*ᴀᴋɪɴᴅᴜ ᴍᴅ*`.trim();
 
         // Send message with image or fallback to text
         const opts = {
@@ -112,23 +102,11 @@ async(conn, mek, m, {from, pushname, reply}) => {
     }
 });
 
-// Helper function to format uptime
-function formatTime(seconds) {
-    const days = Math.floor(seconds / (3600 * 24));
-    seconds %= 3600 * 24;
-    const hours = Math.floor(seconds / 3600);
-    seconds %= 3600;
-    const minutes = Math.floor(seconds / 60);
-    seconds = Math.floor(seconds % 60);
-    
-    return `${days > 0 ? days + 'd ' : ''}${hours > 0 ? hours + 'h ' : ''}${minutes}m ${seconds}s`;
-}
-
 // Command metadata
 commands.alive = {
-    name: "Alive Status",
-    desc: "Shows bot status with time-based greetings",
-    usage: `.alive - Status with time-appropriate greeting
+    name: "Greeting",
+    desc: "Shows time-based greeting with Sri Lanka time",
+    usage: `.alive - Time-based greeting
 .status/.ping/.hi/.hello - Same as alive`,
     category: "core"
 };
