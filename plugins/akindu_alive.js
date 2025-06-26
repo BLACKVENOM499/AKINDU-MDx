@@ -1,138 +1,134 @@
 const config = require('../config');
 const { cmd, commands } = require('../command');
-const os = require('os');
+const moment = require('moment-timezone');
 
-// Enhanced typing simulation with randomized duration
-async function simulateTyping(conn, chatId, min = 800, max = 2500) {
-    const duration = Math.floor(Math.random() * (max - min + 1)) + min;
-    await conn.sendPresenceUpdate('composing', chatId);
-    await new Promise(resolve => setTimeout(resolve, duration));
-    await conn.sendPresenceUpdate('paused', chatId);
-}
-
-// Sri Lanka time with emoji variations
-function getSriLankaTime() {
-    const now = new Date();
-    const options = {
-        timeZone: 'Asia/Colombo',
-        hour12: true,
-        weekday: 'long',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric'
-    };
-    
-    const timeString = now.toLocaleString('en-US', options);
-    const hours = now.getHours();
-    let timeEmoji = '🕛';
-    
-    if (hours >= 5 && hours < 12) timeEmoji = '🌅';
-    else if (hours >= 12 && hours < 17) timeEmoji = '☀️';
-    else if (hours >= 17 && hours < 20) timeEmoji = '🌇';
-    else timeEmoji = '🌙';
-    
-    return `${timeEmoji} ${timeString.replace(',', '')}`;
-}
-
-// Simulated battery status with random charging state
-function getBatteryStatus() {
-    const randomCharge = Math.floor(Math.random() * 100);
-    const isCharging = Math.random() > 0.6;
-    
-    let battEmoji = '🔋';
-    if (isCharging) battEmoji = '⚡';
-    if (randomCharge <= 20) battEmoji = '🪫';
-    
-    return `${battEmoji} ${randomCharge}%${isCharging ? ' (Charging)' : ''}`;
-}
-
-// CPU and memory info
-function getSystemInfo() {
-    return {
-        cpu: `${os.cpus()[0].model.split('@')[0].trim()}`,
-        memory: `${(os.freemem() / 1024 / 1024 / 1024).toFixed(1)}GB/${(os.totalmem() / 1024 / 1024 / 1024).toFixed(1)}GB`,
-        platform: `${os.platform()} ${os.arch()}`
-    };
-}
+// Time-based greeting messages
+const timeGreetings = {
+    morning: [
+        "☀️ Good morning {name}! A fresh new day begins!",
+        "🌄 Rise and shine {name}! How can I help you today?",
+        "🦉 Early bird {name}! What's our first task today?"
+    ],
+    afternoon: [
+        "🌞 Good afternoon {name}! How's your day going?",
+        "👋 Hello {name}! Need some afternoon assistance?",
+        "💻 Afternoon boost {name}! What shall we accomplish?"
+    ],
+    evening: [
+        "🌇 Good evening {name}! How was your day?",
+        "🌙 Evening {name}! Time for some relaxation?",
+        "🍵 Tea time {name}! How can I assist this evening?"
+    ],
+    night: [
+        "🌜 Good night {name}! Rest well!",
+        "🌚 Late night owl {name}! Still working?",
+        "✨ Nighty night {name}! Last tasks before bed?"
+    ]
+};
 
 cmd({
     pattern: "alive",
-    react: ["👋", "🤖", "🏃‍♂️"],
-    desc: "Check bot status with detailed information",
-    category: "main",
+    alias: ["status", "ping", "hi", "hello"],
+    react: "✨",
+    desc: "Check bot status with time-based greeting",
+    category: "core",
     filename: __filename
 },
-async (conn, mek, m, { from, pushname, sender, isOwner }) => {
+async(conn, mek, m, {from, pushname, reply}) => {
     try {
-        // Simulate more realistic typing
-        await simulateTyping(conn, from);
+        // Get current time in Sri Lanka
+        const now = moment().tz('Asia/Colombo');
+        const currentHour = now.hour();
+        const currentTime = now.format('hh:mm:ss A');
+        const currentDate = now.format('dddd, MMMM D, YYYY');
         
-        const slTime = getSriLankaTime();
-        const battery = getBatteryStatus();
+        // Determine time of day
+        let timeOfDay;
+        let greetingPool;
+        
+        if (currentHour < 12) {
+            timeOfDay = "morning";
+            greetingPool = timeGreetings.morning;
+        } else if (currentHour < 17) { // 12pm-5pm
+            timeOfDay = "afternoon";
+            greetingPool = timeGreetings.afternoon;
+        } else if (currentHour < 21) { // 5pm-9pm
+            timeOfDay = "evening";
+            greetingPool = timeGreetings.evening;
+        } else { // 9pm-12am
+            timeOfDay = "night";
+            greetingPool = timeGreetings.night;
+        }
+        
+        // Select random greeting for the time period
+        const randomGreeting = greetingPool[Math.floor(Math.random() * greetingPool.length)]
+            .replace('{name}', pushname.split(' ')[0]);
+        
+        // System information
         const uptime = process.uptime();
-        const sysInfo = getSystemInfo();
+        const memUsage = process.memoryUsage();
+        const formattedUptime = formatTime(uptime);
+        const usedMemory = Math.round(memUsage.rss / 1024 / 1024 * 100) / 100;
         
-        // Dynamic greeting based on time
-        const currentHour = new Date().getHours();
-        let greeting = 'Hello';
-        if (currentHour < 12) greeting = 'Good morning';
-        else if (currentHour < 17) greeting = 'Good afternoon';
-        else greeting = 'Good evening';
+        // Enhanced status message with time-based greeting
+        const statusMessage = `
+╭──「 *ᴀᴋɪɴᴅᴜ ᴍᴅ ᴀʟɪᴠᴇ* 」───
+│
+│ ${randomGreeting}
+│
+│ 🕓 *Current Time in Sri Lanka:* ${currentTime}
 
-        // Random alive quotes
-        const quotes = [
-            "Up and running like a Colombo express!",
-            "Serving you from the heart of Sri Lanka!",
-            "ජීවමානයි සහ ක්‍රියාකාරීයි!",
-            "Ready to assist you 24/7!"
-        ];
-        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
-        
-        const response = `*⌜ 𝗔𝗸𝗶𝗻𝗱𝘂 𝗠𝗗 𝗦𝘁𝗮𝘁𝘂𝘀 𝗕𝗼𝗮𝗿𝗱 ⌟*\n
-💬 ${greeting} ${pushname.split(' ')[0]}! ${randomQuote}
 
-🕒 *Local Time*: ${slTime}
-⏳ *Uptime*: ${formatUptime(uptime)}
-${battery.includes('⚡') ? battery : '🔋 ' + battery}
+│ 📅 *Date:* ${currentDate}
+│ 
+│ 🤖 *Status:* ONLINE
+│
+│ Type `.menu` for command list
+╰───────────────────────
+*ᴀᴋɪɴᴅʏ ᴍᴅ*
+        `.trim();
 
-📊 *System Status*:
-⎔ RAM: ${sysInfo.memory}
-⚙️ CPU: ${sysInfo.cpu}
-💻 OS: ${sysInfo.platform}
+        // Send message with image or fallback to text
+        const opts = {
+            quoted: mek
+        };
 
-${isOwner ? `📡 *Developer Mode*: Active\n` : ''}
-💡 *Need help?* Type .menu for commands
-🚀 *Version*: ${config.version || '2.0.0'}
-
-_🏷️ Powered by Akindu MD_`;
-        
-        // Randomly choose between sending as image or text (80% image)
-        if (Math.random() > 0.2 && config.ALIVE_IMG) {
-            await conn.sendMessage(from, { 
-                image: { url: config.ALIVE_IMG }, 
-                caption: response 
-            }, { quoted: m });
+        if (config.ALIVE_IMG) {
+            opts.image = { url: config.ALIVE_IMG };
+            opts.caption = statusMessage;
         } else {
-            await conn.sendMessage(from, { 
-                text: response 
-            }, { quoted: m });
+            opts.text = statusMessage;
         }
 
-    } catch (e) {
-        console.error('Alive command error:', e);
-        await conn.sendMessage(from, { 
-            text: `⚠️ Oops! Something went wrong:\n${e.message}` 
-        }, { quoted: m });
+        await conn.sendMessage(from, opts);
+
+    } catch (error) {
+        console.error('[ALIVE ERROR]', error);
+        try {
+            await reply('⚠️ Oops! Something went wrong. Please try again.');
+        } catch (fallbackError) {
+            console.error('[FALLBACK ERROR]', fallbackError);
+        }
     }
 });
 
-function formatUptime(seconds) {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
+// Helper function to format uptime
+function formatTime(seconds) {
+    const days = Math.floor(seconds / (3600 * 24));
+    seconds %= 3600 * 24;
+    const hours = Math.floor(seconds / 3600);
+    seconds %= 3600;
+    const minutes = Math.floor(seconds / 60);
+    seconds = Math.floor(seconds % 60);
     
-    return `${days ? `${days}d ` : ''}${hours}h ${minutes}m ${secs}s`;
+    return `${days > 0 ? days + 'd ' : ''}${hours > 0 ? hours + 'h ' : ''}${minutes}m ${seconds}s`;
 }
+
+// Command metadata
+commands.alive = {
+    name: "Alive Status",
+    desc: "Shows bot status with time-based greetings",
+    usage: `.alive - Status with time-appropriate greeting
+.status/.ping/.hi/.hello - Same as alive`,
+    category: "core"
+};
