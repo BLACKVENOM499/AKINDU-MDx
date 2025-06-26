@@ -1,135 +1,138 @@
+const config = require('../config');
 const { cmd, commands } = require('../command');
-const moment = require('moment-timezone');
-const config = require('../../config');
+const os = require('os');
 
-// Store sessions with expiration
-const sessions = new Map();
-const SESSION_TIMEOUT = 2 * 60 * 1000; // 2 minutes
+// Enhanced typing simulation with randomized duration
+async function simulateTyping(conn, chatId, min = 800, max = 2500) {
+    const duration = Math.floor(Math.random() * (max - min + 1)) + min;
+    await conn.sendPresenceUpdate('composing', chatId);
+    await new Promise(resolve => setTimeout(resolve, duration));
+    await conn.sendPresenceUpdate('paused', chatId);
+}
+
+// Sri Lanka time with emoji variations
+function getSriLankaTime() {
+    const now = new Date();
+    const options = {
+        timeZone: 'Asia/Colombo',
+        hour12: true,
+        weekday: 'long',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric'
+    };
+    
+    const timeString = now.toLocaleString('en-US', options);
+    const hours = now.getHours();
+    let timeEmoji = '🕛';
+    
+    if (hours >= 5 && hours < 12) timeEmoji = '🌅';
+    else if (hours >= 12 && hours < 17) timeEmoji = '☀️';
+    else if (hours >= 17 && hours < 20) timeEmoji = '🌇';
+    else timeEmoji = '🌙';
+    
+    return `${timeEmoji} ${timeString.replace(',', '')}`;
+}
+
+// Simulated battery status with random charging state
+function getBatteryStatus() {
+    const randomCharge = Math.floor(Math.random() * 100);
+    const isCharging = Math.random() > 0.6;
+    
+    let battEmoji = '🔋';
+    if (isCharging) battEmoji = '⚡';
+    if (randomCharge <= 20) battEmoji = '🪫';
+    
+    return `${battEmoji} ${randomCharge}%${isCharging ? ' (Charging)' : ''}`;
+}
+
+// CPU and memory info
+function getSystemInfo() {
+    return {
+        cpu: `${os.cpus()[0].model.split('@')[0].trim()}`,
+        memory: `${(os.freemem() / 1024 / 1024 / 1024).toFixed(1)}GB/${(os.totalmem() / 1024 / 1024 / 1024).toFixed(1)}GB`,
+        platform: `${os.platform()} ${os.arch()}`
+    };
+}
 
 cmd({
     pattern: "alive",
-    alias: ["menu"],
-    desc: "Interactive menu with number replies",
-    category: "core",
+    react: ["👋", "🤖", "🏃‍♂️"],
+    desc: "Check bot status with detailed information",
+    category: "main",
     filename: __filename
-}, async (m, sock) => {
+},
+async (conn, mek, m, { from, pushname, sender, isOwner }) => {
     try {
-        const sessionId = m.from;
-        const menuMessage = await m.reply(generateMenuText(m));
-
-        // Store session
-        sessions.set(sessionId, {
-            timestamp: Date.now(),
-            menuMessageId: menuMessage.key.id
-        });
-
-        // Auto-clean session
-        setTimeout(() => sessions.delete(sessionId), SESSION_TIMEOUT);
-
-    } catch (error) {
-        console.error('[ALIVE ERROR]', error);
-        await m.reply('❌ Menu failed to load');
-    }
-});
-
-// Handle number responses
-cmd({
-    on: "text",
-    fromMe: false,
-    dontAddCommandList: true
-}, async (m, sock) => {
-    // Validate number reply
-    if (!/^[1-4]$/.test(m.body)) return;
-    
-    const session = sessions.get(m.from);
-    if (!session) return;
-
-    // React to show processing
-    await sock.sendMessage(m.from, { 
-        react: { text: '⏳', key: m.key } 
-    });
-
-    try {
-        switch (m.body.trim()) {
-            case '1':
-                await handleSpeedTest(m, sock);
-                break;
-            case '2':
-                await handleSystemInfo(m, sock);
-                break;
-            case '3':
-                await handleCommandList(m, sock);
-                break;
-            case '4':
-                await handleServerStatus(m, sock);
-                break;
-        }
+        // Simulate more realistic typing
+        await simulateTyping(conn, from);
         
-        // Confirm completion
-        await sock.sendMessage(m.from, { 
-            react: { text: '✅', key: m.key } 
-        });
+        const slTime = getSriLankaTime();
+        const battery = getBatteryStatus();
+        const uptime = process.uptime();
+        const sysInfo = getSystemInfo();
+        
+        // Dynamic greeting based on time
+        const currentHour = new Date().getHours();
+        let greeting = 'Hello';
+        if (currentHour < 12) greeting = 'Good morning';
+        else if (currentHour < 17) greeting = 'Good afternoon';
+        else greeting = 'Good evening';
 
-    } catch (error) {
-        await sock.sendMessage(m.from, { 
-            react: { text: '❌', key: m.key } 
-        });
-    } finally {
-        sessions.delete(m.from); // Clear after handling
+        // Random alive quotes
+        const quotes = [
+            "Up and running like a Colombo express!",
+            "Serving you from the heart of Sri Lanka!",
+            "ජීවමානයි සහ ක්‍රියාකාරීයි!",
+            "Ready to assist you 24/7!"
+        ];
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        
+        const response = `*⌜ 𝗔𝗸𝗶𝗻𝗱𝘂 𝗠𝗗 𝗦𝘁𝗮𝘁𝘂𝘀 𝗕𝗼𝗮𝗿𝗱 ⌟*\n
+💬 ${greeting} ${pushname.split(' ')[0]}! ${randomQuote}
+
+🕒 *Local Time*: ${slTime}
+⏳ *Uptime*: ${formatUptime(uptime)}
+${battery.includes('⚡') ? battery : '🔋 ' + battery}
+
+📊 *System Status*:
+⎔ RAM: ${sysInfo.memory}
+⚙️ CPU: ${sysInfo.cpu}
+💻 OS: ${sysInfo.platform}
+
+${isOwner ? `📡 *Developer Mode*: Active\n` : ''}
+💡 *Need help?* Type .menu for commands
+🚀 *Version*: ${config.version || '2.0.0'}
+
+_🏷️ Powered by Akindu MD_`;
+        
+        // Randomly choose between sending as image or text (80% image)
+        if (Math.random() > 0.2 && config.ALIVE_IMG) {
+            await conn.sendMessage(from, { 
+                image: { url: config.ALIVE_IMG }, 
+                caption: response 
+            }, { quoted: m });
+        } else {
+            await conn.sendMessage(from, { 
+                text: response 
+            }, { quoted: m });
+        }
+
+    } catch (e) {
+        console.error('Alive command error:', e);
+        await conn.sendMessage(from, { 
+            text: `⚠️ Oops! Something went wrong:\n${e.message}` 
+        }, { quoted: m });
     }
 });
 
-// Menu Content Generator
-function generateMenuText(m) {
-    const time = moment().tz(config.TIMEZONE).format('h:mm A');
-    const date = moment().tz(config.TIMEZONE).format('D MMM YYYY');
-    const uptime = formatUptime(process.uptime());
-
-    return `╭──「 ${config.BOT_NAME} Menu 」─⊷
-│
-│ 🕒 ${time} | 📅 ${date} (LK)
-│ ⚡ Uptime: ${uptime}
-│
-│ 1. Speed Test 🚀
-│ 2. System Info 💻  
-│ 3. Command List 📜
-│ 4. Server Status 🛠
-│
-╰──「 Reply with NUMBER 1-4 」⊷`;
-}
-
-// Command Handlers
-async function handleSpeedTest(m, sock) {
-    const start = Date.now();
-    const pingMsg = await m.reply('🏓 Pinging...');
-    const latency = Date.now() - start;
-    
-    await pingMsg.edit(`📊 *Speed Test Results*\n`
-        + `Response: ${latency}ms\n`
-        + `${latency < 500 ? "🚀 Excellent" : "🐢 Needs improvement"}`);
-}
-
-async function handleSystemInfo(m, sock) {
-    const mem = process.memoryUsage();
-    await m.reply(`💻 *System Information*\n`
-        + `Platform: ${process.platform}\n`
-        + `Memory: ${(mem.heapUsed/1024/1024).toFixed(2)}MB used\n`
-        + `Node.js: ${process.version}`);
-}
-
-async function handleCommandList(m, sock) {
-    await m.reply(`📜 *Core Commands*\n\n`
-        + `.alive - This menu\n.ping - Test latency\n`
-        + `.help - Show full help\n.song - Download music`);
-}
-
-async function handleServerStatus(m, sock) {
-    await m.reply(`🛠️ *Server Status*\n`
-        + `Uptime: ${formatUptime(process.uptime())}\n`
-        + `Active Sessions: ${sessions.size}`);
-}
-
-// Helper
 function formatUptime(seconds) {
-    // ... (same uptime formatter as before)
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    return `${days ? `${days}d ` : ''}${hours}h ${minutes}m ${secs}s`;
 }
