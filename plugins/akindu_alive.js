@@ -75,7 +75,7 @@ async(conn, mek, m, {from, pushname, reply}) => {
 ❒ *ᴅᴀᴛᴇ* *${currentDate}*
 
  
-ᴛʏᴘᴇ `.ᴍᴇɴᴜ` ᴛᴏ ɢᴇᴛ ʙᴏᴛ ᴍᴇɴᴜ
+ᴛʏᴘᴇ .ᴍᴇɴᴜ ᴛᴏ ɢᴇᴛ ʙᴏᴛ ᴍᴇɴᴜ
 
 *ᴀᴋɪɴᴅᴜ ᴍᴅ*`.trim();
 
