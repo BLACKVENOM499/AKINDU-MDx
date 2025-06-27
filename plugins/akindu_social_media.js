@@ -1,111 +1,104 @@
 const { cmd } = require('../command');
 const axios = require('axios');
 
-// Database for storing temporary user selections
-const qualitySelectionDB = {};
-
-const handleDownload = async (conn, m, from, q, reply, requestedQuality) => {
+const handleDownload = async (conn, m, from, q, reply, requestedType) => {
   try {
     if (!q || !q.startsWith("https://")) {
-      return reply("*⚠️ Please provide a valid Facebook URL!*");
+      return reply("*`Need a valid Facebook URL!`*");
     }
 
     await conn.sendMessage(from, { react: { text: '📥', key: m.key } });
-
+    
     const apiUrl = `https://lance-frank-asta.onrender.com/api/downloader?url=${encodeURIComponent(q)}`;
     const { data } = await axios.get(apiUrl);
 
     if (!data?.content?.status || !data?.content?.data?.result?.length) {
-      throw new Error("Invalid API response or no video found");
+      throw new Error("Invalid API response or no video found.");
     }
 
-    // Quality selection logic
-    let videoData = data.content.data.result.find(v => v.quality === requestedQuality) || 
-                   data.content.data.result[0]; // Fallback to first available
+    let videoData;
+    if (requestedType === 'SD_VIDEO') {
+      videoData = data.content.data.result.find(v => v.quality === 'SD' && v.type === 'video');
+    } else if (requestedType === 'SD_DOCUMENT') {
+      videoData = data.content.data.result.find(v => v.quality === 'SD' && v.type === 'document');
+    } else if (requestedType === 'HD_VIDEO') {
+      videoData = data.content.data.result.find(v => v.quality === 'HD' && v.type === 'video');
+    } else if (requestedType === 'HD_DOCUMENT') {
+      videoData = data.content.data.result.find(v => v.quality === 'HD' && v.type === 'document');
+    } else if (requestedType === 'AUDIO') {
+      videoData = data.content.data.result.find(v => v.type === 'audio');
+    }
 
     if (!videoData) {
-      throw new Error("No downloadable video found");
+      throw new Error("No valid video URL found.");
     }
 
-    const qualityLabel = `Quality: ${videoData.quality || 'Standard'}`;
+    const qualityLabel = videoData.quality || 'Standard';
     await conn.sendMessage(from, {
       video: { url: videoData.url },
-      caption: `👇 *VIDEO DOWNLOADED* 👇\n${qualityLabel}\n🚀 Powered by AkinDu-MD`
+      caption: `📥 *𝐒𝐔𝐋𝐀-𝐌𝐃 𝐅𝐀𝐂𝐄𝐁𝐎𝐎𝐊 𝐕𝐈𝐃𝐄𝐎 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐃*\n> *𝚅𝙸𝙳𝙴𝙾 𝚄𝚁𝙻:* ${videoData.url}\n> *Quality:* ${qualityLabel}`
     }, { quoted: m });
 
   } catch (error) {
-    console.error("DOWNLOAD ERROR:", error);
-    await reply(`❌ Download failed: ${error.message}\nPlease try again.`);
+    console.error("Facebook Download Error:", error);
+    const ownerNumber = conn.user.id.split(":")[0] + "@s.whatsapp.net";
+    await conn.sendMessage(ownerNumber, {
+      text: `⚠️ *Facebook Downloader Error!*\n\n📍 *Group/User:* ${from}\n💬 *Query:* ${q}\n❌ *Error:* ${error.message || error}`
+    });
+    reply(`❌ *Error:* Unable to process the request. Please try again later.`);
   }
 };
 
-// Main command to start download process
+// Command to initiate the download process
 cmd({
   pattern: "fb",
   alias: ["facebook", "fbdl"],
-  desc: "Download Facebook videos with quality selection",
+  desc: "Download Facebook videos with quality and type selection",
   category: "download",
   filename: __filename
 }, async (conn, m, store, { from, q, reply }) => {
-  if (!q) return reply("*Please include a Facebook video URL*");
-  
-  // Store URL with timestamp
-  qualitySelectionDB[from] = {
-    url: q,
-    timestamp: Date.now()
-  };
-
-  // Send quality options
+  // Ask the user for the quality and type selection
   await conn.sendMessage(from, {
-    text: `📺 *SELECT VIDEO QUALITY:*\n\n1. HD (Recommended)\n2. SD\n3. Auto (System Default)\n\nReply with the number (1-3)`,
-    footer: "Selection expires in 2 minutes",
-    templateButtons: [
-      { quickReplyButton: { displayText: "1. HD" }},
-      { quickReplyButton: { displayText: "2. SD" }},
-      { quickReplyButton: { displayText: "3. Auto" }}
-    ]
+    text: `📥 *𝐒𝐔𝐋𝐀-𝐌𝐃 𝐅𝐀𝐂𝐄𝐁𝐎𝐎𝐊 𝐕𝐈𝐃𝐄𝐎 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑* 📥\n\n➤ *𝚅𝙸𝙳𝙴𝙾 𝚄𝚁𝙻 :* ${q}\n\n*🔢 Reply Below Number*\n\n𝐒𝙳 𝐓𝚈𝙿𝙴 🪫\n    1.1 │  🪫 \`SD\` 𝐐𝚄𝙰𝙻𝙸𝚃𝚈 𝐕𝙸𝙳𝙴𝙾\n    1.2 │  📂 \`SD\` 𝐐𝚄𝙰𝙻𝙸𝚃𝚈 𝐃𝙾𝙲𝚄𝙼𝙴𝙽𝚃\n\n𝐇𝙳 𝐓𝚈𝙿𝙴 🔋\n    2.1 │  🔋 \`HD\` 𝐐𝚄𝙰𝙻𝙸𝚃𝚈 𝐕𝙸𝙳𝙴𝙾\n    2.2 │  📂 \`HD\` 𝐐𝚄𝙰𝙻𝙸𝚃𝚈 𝐃𝙾𝙲𝚄𝙼𝙴𝙽𝚃\n\n𝐕𝙾𝙸𝙲𝙴 𝐓𝚈𝙿𝙴 🎶\n    3.1 │  🎶 \`AUDIO\` 𝐅𝙄𝙇𝙀\n    3.2 │  📂 \`DOCUMENT\` 𝐅𝙄𝙇𝙀\n\n> 𝐏𝙊𝚆𝙀𝚁𝙀𝙳 𝐁𝚈 𝐒𝚄𝙇𝙰 𝐌𝙳`
   }, { quoted: m });
+
+  // Store the URL for later use
+  store[from] = { url: q };
 });
 
-// Number reply handler
+// Command to handle the user's quality and type selection
 cmd({
   pattern: "reply",
-  desc: "Handles number selection for quality",
-  category: "system",
+  desc: "Handle quality and type selection for Facebook video download",
+  category: "download",
   filename: __filename
 }, async (conn, m, store, { from, reply }) => {
-  const selection = parseInt(m.text.trim());
-  const savedData = qualitySelectionDB[from];
+  const userSelection = m.text.trim();
 
-  // Validate data exists and is recent (<2 mins old)
-  if (!savedData || (Date.now() - savedData.timestamp) > 120000) {
-    delete qualitySelectionDB[from];
-    return reply("*❌ Selection expired. Please start over.*");
+  // Check if the user has previously sent a URL
+  if (!store[from] || !store[from].url) {
+    return reply("*`Please provide a valid Facebook URL first!`*");
   }
 
-  // Process selection
-  let quality;
-  switch(selection) {
-    case 1: quality = 'HD'; break;
-    case 2: quality = 'SD'; break;
-    case 3: quality = 'auto'; break;
-    default: 
-      return reply("*⚠️ Invalid choice! Reply with 1, 2 or 3*");
+  const url = store[from].url;
+
+  // Determine the requested type based on user input
+  if (userSelection === '1.1') {
+    await handleDownload(conn, m, from, url, reply, 'SD_VIDEO');
+  } else if (userSelection === '1.2') {
+    await handleDownload(conn, m, from, url, reply, 'SD_DOCUMENT');
+  } else if (userSelection === '2.1') {
+    await handleDownload(conn, m, from, url, reply, 'HD_VIDEO');
+  } else if (userSelection === '2.2') {
+    await handleDownload(conn, m, from, url, reply, 'HD_DOCUMENT');
+  } else if (userSelection === '3.1') {
+    await handleDownload(conn, m, from, url, reply, 'AUDIO');
+  } else if (userSelection === '3.2') {
+    await handleDownload(conn, m, from, url, reply, 'DOCUMENT');
+  } else {
+    reply("*`Invalid selection! Please reply with the correct number for your choice.`*");
   }
 
-  // Clean up stored data
-  delete qualitySelectionDB[from];
-
-  // Start download
-  await handleDownload(conn, m, from, savedData.url, reply, quality);
+  // Clear the stored URL after processing
+  delete store[from];
 });
-
-// Clean expired selections periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const user in qualitySelectionDB) {
-    if (now - qualitySelectionDB[user].timestamp > 120000) {
-      delete qualitySelectionDB[user];
-    }
-  }
-}, 60000); // Runs every minute
