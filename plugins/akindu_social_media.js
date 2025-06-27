@@ -1,102 +1,111 @@
 const { cmd } = require('../command');
 const axios = require('axios');
 
-// Common download handler with quality selection
+// Database for storing temporary user selections
+const qualitySelectionDB = {};
+
 const handleDownload = async (conn, m, from, q, reply, requestedQuality) => {
   try {
     if (!q || !q.startsWith("https://")) {
-      return reply("*Please provide a valid Facebook URL!*\nExample: fb hd https://fb.com/video");
+      return reply("*⚠️ Please provide a valid Facebook URL!*");
     }
 
-    await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
+    await conn.sendMessage(from, { react: { text: '📥', key: m.key } });
 
     const apiUrl = `https://lance-frank-asta.onrender.com/api/downloader?url=${encodeURIComponent(q)}`;
     const { data } = await axios.get(apiUrl);
 
     if (!data?.content?.status || !data?.content?.data?.result?.length) {
+      throw new Error("Invalid API response or no video found");
+    }
+
+    // Quality selection logic
+    let videoData = data.content.data.result.find(v => v.quality === requestedQuality) || 
+                   data.content.data.result[0]; // Fallback to first available
+
+    if (!videoData) {
       throw new Error("No downloadable video found");
     }
 
-    // Try requested quality first, then fallback
-    let videoData = data.content.data.result.find(v => v.quality === requestedQuality);
-    if (!videoData && requestedQuality === 'HD') {
-      videoData = data.content.data.result.find(v => v.quality === 'SD');
-    }
-    if (!videoData) videoData = data.content.data.result[0];
-
-    const qualityNumber = videoData.quality === 'HD' ? '1080' : '720';
-    
+    const qualityLabel = `Quality: ${videoData.quality || 'Standard'}`;
     await conn.sendMessage(from, {
       video: { url: videoData.url },
-      caption: `✅ Downloaded with ${qualityNumber}p Quality\n📊 Size: ${(videoData.size/1024/1024).toFixed(2)}MB\n🚀 Powered by AKindU MD`
+      caption: `👇 *VIDEO DOWNLOADED* 👇\n${qualityLabel}\n🚀 Powered by AkinDu-MD`
     }, { quoted: m });
 
-    // Delete processing reaction
-    await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
-
   } catch (error) {
-    await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-    reply(`Failed to download: ${error.message}`);
+    console.error("DOWNLOAD ERROR:", error);
+    await reply(`❌ Download failed: ${error.message}\nPlease try again.`);
   }
 };
 
-// HD Quality Command
-cmd({
-  pattern: "fbhd",
-  alias: ["fbd-hd"],
-  desc: "Download HD Facebook videos (1080p)",
-  category: "download",
-  filename: __filename
-}, async (conn, m, store, { from, q, reply }) => {
-  await handleDownload(conn, m, from, q, reply, 'HD');
-});
-
-// SD Quality Command
-cmd({
-  pattern: "fbsd",
-  alias: ["fbd-sd"],
-  desc: "Download SD Facebook videos (720p)",
-  category: "download",
-  filename: __filename
-}, async (conn, m, store, { from, q, reply }) => {
-  await handleDownload(conn, m, from, q, reply, 'SD');
-});
-
-// Number-based quality selection
+// Main command to start download process
 cmd({
   pattern: "fb",
   alias: ["facebook", "fbdl"],
-  desc: "Download Facebook videos with quality number\nExample: fb 1080 <url> for HD",
+  desc: "Download Facebook videos with quality selection",
   category: "download",
   filename: __filename
 }, async (conn, m, store, { from, q, reply }) => {
-  const parts = q.split(' ');
-  let quality = 'auto';
-  let url = q;
+  if (!q) return reply("*Please include a Facebook video URL*");
+  
+  // Store URL with timestamp
+  qualitySelectionDB[from] = {
+    url: q,
+    timestamp: Date.now()
+  };
 
-  // Check for number quality specification
-  if (parts.length > 1 && !isNaN(parts[0])) {
-    const qualityNum = parseInt(parts[0]);
-    quality = qualityNum >= 1080 ? 'HD' : 'SD';
-    url = parts.slice(1).join(' ');
+  // Send quality options
+  await conn.sendMessage(from, {
+    text: `📺 *SELECT VIDEO QUALITY:*\n\n1. HD (Recommended)\n2. SD\n3. Auto (System Default)\n\nReply with the number (1-3)`,
+    footer: "Selection expires in 2 minutes",
+    templateButtons: [
+      { quickReplyButton: { displayText: "1. HD" }},
+      { quickReplyButton: { displayText: "2. SD" }},
+      { quickReplyButton: { displayText: "3. Auto" }}
+    ]
+  }, { quoted: m });
+});
+
+// Number reply handler
+cmd({
+  pattern: "reply",
+  desc: "Handles number selection for quality",
+  category: "system",
+  filename: __filename
+}, async (conn, m, store, { from, reply }) => {
+  const selection = parseInt(m.text.trim());
+  const savedData = qualitySelectionDB[from];
+
+  // Validate data exists and is recent (<2 mins old)
+  if (!savedData || (Date.now() - savedData.timestamp) > 120000) {
+    delete qualitySelectionDB[from];
+    return reply("*❌ Selection expired. Please start over.*");
   }
 
-  await handleDownload(conn, m, from, url, reply, quality);
+  // Process selection
+  let quality;
+  switch(selection) {
+    case 1: quality = 'HD'; break;
+    case 2: quality = 'SD'; break;
+    case 3: quality = 'auto'; break;
+    default: 
+      return reply("*⚠️ Invalid choice! Reply with 1, 2 or 3*");
+  }
+
+  // Clean up stored data
+  delete qualitySelectionDB[from];
+
+  // Start download
+  await handleDownload(conn, m, from, savedData.url, reply, quality);
 });
 
-// Helper command to show available qualities
-cmd({
-  pattern: "fbhelp",
-  desc: "Show Facebook download quality options",
-  category: "download",
-  filename: __filename
-}, (conn, m, store, { reply }) => {
-  reply(`📱 *Facebook Download Quality Options*:
-  
-🔹 *fb 1080 <url>* - Best quality (HD)
-🔹 *fb 720 <url>* - Standard quality (SD)
-🔹 *fbhd <url>* - Force HD download
-🔹 *fbsd <url>* - Force SD download
-
-💡 Example: *fb 1080 https://fb.com/video*`);
-});
+// Clean expired selections periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const user in qualitySelectionDB) {
+    if (now - qualitySelectionDB[user].timestamp > 120000) {
+      delete qualitySelectionDB[user];
+    }
+  }
+}, 60000); // Runs every minute
