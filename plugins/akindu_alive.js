@@ -68,11 +68,11 @@ async(conn, mek, m, {from, pushname, reply}) => {
         const statusMessage = `
 *ᴀᴋɪɴᴅᴜ ᴍᴅ ᴀʟɪᴠᴇ*
 
-❒ *ʜᴇʟʟᴏ* *${pushname}* *${randomGreeting}*
+❒ 👋 *ʜᴇʟʟᴏ* *${pushname}* ${randomGreeting}
 
-❒ *ᴛɪᴍᴇ* *${currentTime}*
+❒ 🕓 *ᴛɪᴍᴇ* *${currentTime}*
 
-❒ *ᴅᴀᴛᴇ* *${currentDate}*
+❒ 📆 *ᴅᴀᴛᴇ* *${currentDate}*
 
  
 ᴛʏᴘᴇ .ᴍᴇɴᴜ ᴛᴏ ɢᴇᴛ ʙᴏᴛ ᴍᴇɴᴜ
