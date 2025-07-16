@@ -3,7 +3,7 @@ const cheerio = require("cheerio");
 const axios = require("axios");
 const { cmd, commands } = require('../command');
 
-exec({
+cmd({
     command: 'movie',
     react: '🎬',
     category: 'download'
