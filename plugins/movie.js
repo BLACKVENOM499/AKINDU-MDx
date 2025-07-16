@@ -1,10 +1,12 @@
 // කෝඩ් හොරුන්ට තමා ENC කරන් නැතුව දැම්මෙ. අරගෙන Use කරපල්ලා 😂😂
 
+const { fetchJson } = require("../lib/functions");
+const cheerio = require("cheerio");
+const axios = require("axios");
+const { cmd, commands } = require('../command');
 
-const { exec } = require('../lib')
-const axios = require('axios')
 
-exec({
+cmd({
     command: 'movie',
     react: '🎬',
     category: 'download'
