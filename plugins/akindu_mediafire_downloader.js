@@ -5,7 +5,7 @@ const axios = require('axios');
 
 cmd({
   pattern: "mediafire",
-  alias: ["mfire","mf"],
+  alias: ["mfire", "mf"],
   desc: "To download MediaFire files.",
   react: "📂",
   category: "download",
@@ -17,7 +17,7 @@ cmd({
   reply
 }) => {
   try {
-    if (!q) {
+    if (!q || !q.includes("mediafire.com")) {
       return reply("❌ Please provide a valid MediaFire link.");
     }
 
@@ -25,14 +25,14 @@ cmd({
       react: { text: "📥", key: m.key }
     });
 
-    const response = await axios.get(`https://www.dark-yasiya-api.site/download/mfire?url=${q}`);
+    const response = await axios.get(`https://supun-md-api-xmjh.vercel.app/api/mediafire-dl?url=${q}`);
     const data = response.data;
 
-    if (!data || !data.status || !data.result || !data.result.dl_link) {
+    if (!data || !data.status || !data.result || !data.result.url) {
       return reply("⚠️ Failed to fetch MediaFire download link. Ensure the link is valid and public.");
     }
 
-    const { dl_link, fileName, fileType } = data.result;
+    const { url: dl_link, name: fileName, mimetype: fileType } = data.result;
     const file_name = fileName || "mediafire_download";
     const mime_type = fileType || "application/octet-stream";
 
@@ -41,7 +41,7 @@ cmd({
     });
 
     const caption = `*ᴀᴋɪɴᴅᴜ ᴍᴅ ᴍᴇᴅɪᴀꜰɪʀᴇ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*
-    
+
 ❒ *ꜰɪʟᴇ ɴᴀᴍᴇ* : ${file_name}
 
 ❒ *ꜰɪʟᴇ ᴛʏᴘᴇ* : ${mime_type}
@@ -60,4 +60,3 @@ cmd({
     reply("❌ An error occurred while processing your request. Please try again.");
   }
 });
-        
