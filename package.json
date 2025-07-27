@@ -1,7 +1,7 @@
 {
   "name": "AKINDU-MD",
   "version": "1.0.0",
-  "description": "A WHATSAPP BOT CREATED BY AKINDU",
+  "description": "A WhatsApp Bot Created By Akindu Dimansha",
   "main": "index.js",
   "scripts": {
     "start": "pm2 start index.js --deep-monitoring --attach --name AKINDU-MD",
@@ -9,8 +9,7 @@
     "restart": "pm2 restart AKINDU-MD"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "github:MR-LAKIYA/Baileys",
-"jimp": "0.16.1",
+    "@whiskeysockets/baileys": "npm:baileys-pro@latest",
     "@adiwajshing/keyed-db": "^0.2.4",
     "@dark-yasiya/yt-dl.js": "1.0.5",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
